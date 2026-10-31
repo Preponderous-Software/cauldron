@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Cauldron</title>
+<meta name="description" content="Cauldron: a cozy Halloween potion-brewing game. Follow the recipe card, drop ingredients into the bubbling cauldron, and stir. On the Strata engine.">
+<style>
+  :root {
+    --bg: #0f0a14; --panel: rgba(22, 14, 28, 0.9); --line: #43304d; --text: #f4ead8; --dim: #b8a8b4;
+    --glow: #9cf06a; --pump: #ff9a2e; --btn: #2a1c33; --paper: #f3e3c0; --ink: #3b2416;
+    --sk-loader-bg: var(--bg); --sk-loader-fg: var(--text); --sk-loader-panel: var(--panel); --sk-loader-accent: var(--glow);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 15px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+  .bar { flex: 0 0 auto; display: flex; gap: 8px; align-items: center; background: var(--panel); z-index: 2;
+    padding: 6px max(10px, env(safe-area-inset-right)) 6px max(10px, env(safe-area-inset-left)); }
+  #top { border-bottom: 1px solid var(--line); padding-top: max(6px, env(safe-area-inset-top)); }
+  .brand { font-weight: 800; letter-spacing: 0.04em; color: var(--glow); text-decoration: none; font-size: 17px; }
+  .stat { color: var(--dim); white-space: nowrap; }
+  #stars { color: #ffd65a; }
+  .grow { flex: 1 1 auto; }
+  button { font: inherit; color: var(--text); background: var(--btn); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 12px; min-height: 40px; cursor: pointer; touch-action: manipulation; }
+  body.touch button { min-height: 44px; min-width: 44px; }
+  button:focus-visible { outline: 2px solid var(--glow); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  #soundBtn[aria-pressed="false"] { text-decoration: line-through; opacity: 0.7; }
+  #stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+  canvas#canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; background: #08050b; cursor: pointer; }
+
+  /* The recipe card: parchment, top left. */
+  #card { position: absolute; top: 10px; left: max(10px, env(safe-area-inset-left)); width: min(300px, 44%); z-index: 2;
+    background: var(--paper); color: var(--ink); border-radius: 6px 14px 8px 12px; padding: 10px 12px 9px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55); transform: rotate(-1deg); font-family: Georgia, "Times New Roman", serif; }
+  #card .kicker { font: 600 11px/1.2 system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: #8a5a32; }
+  #card h2 { margin: 2px 0 6px; font-size: 19px; line-height: 1.15; }
+  #card ol { margin: 0; padding-left: 0; list-style: none; }
+  #card li { margin: 3px 0; padding-left: 22px; position: relative; font-size: 15px; }
+  #card li::before { content: "\25CB"; position: absolute; left: 2px; color: #a0784e; }
+  #card li.done { color: #3d7a2a; }
+  #card li.done::before { content: "\2713"; color: #3d7a2a; font-weight: 700; }
+  #card.riddle li::before { content: "\2726"; color: #a0784e; }
+  #card .answer { margin-top: 6px; padding-top: 5px; border-top: 1px dashed #b89a72; font-size: 14px; color: #6b4426; }
+  #pot { margin-top: 7px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font: 12px system-ui, sans-serif; color: #7a5a3a; }
+  #pot i { width: 13px; height: 13px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0, 0, 0, 0.35); }
+
+  /* What the brew did. */
+  #toast { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 3; display: none;
+    width: min(460px, calc(100% - 20px)); background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 14px 12px; text-align: center; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+  #toast.show { display: block; animation: pop 0.35s ease-out; }
+  #toast h3 { margin: 0 0 3px; font-size: 21px; color: var(--pump); }
+  #toast.good h3 { color: var(--glow); }
+  #toast p { margin: 0 0 9px; }
+  #toast .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  #toast .row button { min-width: 130px; font-weight: 700; }
+  #nextBtn, #againBtn { background: #3d5a1e; border-color: var(--glow); }
+  /* Wide screens: the verdict sits at the bottom right, clear of the hearth (and the frog). */
+  @media (min-width: 900px) {
+    #toast { left: auto; right: max(16px, env(safe-area-inset-right)); bottom: 16px; transform: none; width: 400px; }
+    #toast.show { animation-name: popRight; }
+  }
+  @keyframes popRight { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes pop { from { transform: translateX(-50%) scale(0.85); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+  #hint { position: absolute; right: max(10px, env(safe-area-inset-right)); top: 10px; z-index: 1; color: var(--dim); font-size: 13px;
+    text-shadow: 0 1px 3px #000; pointer-events: none; text-align: right; max-width: 40%; }
+
+  /* The shelf: a button per ingredient, then Stir and Pour out. */
+  #tray { border-top: 1px solid var(--line); flex-wrap: wrap; justify-content: center;
+    padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  #shelf { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; flex: 1 1 640px; max-width: 900px; }
+  #shelf button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px; font-size: 13px; line-height: 1.1; min-height: 60px; }
+  #shelf button .jar { width: 22px; height: 24px; border-radius: 5px 5px 9px 9px; border: 2px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 0 10px var(--c); background: var(--c); position: relative; }
+  #shelf button .jar::before { content: ""; position: absolute; left: 3px; right: 3px; top: -6px; height: 5px; background: #9c6b3c; border-radius: 2px; }
+  #shelf button:active { filter: brightness(1.4); transform: translateY(1px); }
+  #shelf kbd { font: 10px system-ui, sans-serif; color: var(--dim); }
+  #actions { display: flex; gap: 6px; flex: 0 0 auto; }
+  #stirBtn { min-width: 110px; font-weight: 800; font-size: 17px; background: #4a2b5e; border-color: #b07ad8; }
+  #pourBtn { min-width: 90px; }
+
+  .dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(22, 14, 28, 0.97);
+    border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; z-index: 5; width: min(92vw, 470px);
+    max-height: 88vh; overflow-y: auto; display: none; }
+  .dialog h2 { margin: 0 0 8px; font-size: 21px; color: var(--glow); }
+  .dialog p, .dialog li { margin: 5px 0; }
+  .dialog ul { padding-left: 18px; }
+  .dialog .row { display: flex; justify-content: center; gap: 8px; margin-top: 12px; }
+  .dialog .row button { min-width: 140px; font-weight: 700; }
+  .dim { color: var(--dim); font-size: 13px; }
+  kbd { background: #34233d; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 12px; }
+  a { color: var(--glow); }
+  #book li { list-style: none; margin-left: -18px; }
+  .for-touch { display: none; }
+  body.touch .for-touch { display: list-item; }
+  body.touch .for-keys, body.touch #shelf kbd { display: none; }
+
+  /* Phones: the card goes across the top, small; the shelf is two rows of four. */
+  @media (max-width: 700px) {
+    #shelf { grid-template-columns: repeat(4, minmax(0, 1fr)); flex-basis: 100%; }
+    #shelf button { flex-direction: row; justify-content: flex-start; min-height: 46px; font-size: 12px; text-align: left; padding: 4px 4px; gap: 4px; }
+    #shelf button .jar { flex: 0 0 auto; width: 12px; height: 17px; border-width: 1px; }
+    #shelf button .nm { -webkit-hyphens: auto; hyphens: auto; }
+    #toast { padding: 8px 10px 10px; }
+    #toast h3 { font-size: 18px; }
+    #toast p { font-size: 13.5px; margin-bottom: 7px; }
+    #actions { flex-basis: 100%; }
+    #actions button { flex: 1 1 0; }
+    #card { width: calc(100% - 20px); transform: none; padding: 7px 10px; }
+    #card h2 { font-size: 16px; margin-bottom: 3px; }
+    #card ol { display: flex; flex-wrap: wrap; column-gap: 12px; }
+    #card li { font-size: 13.5px; margin: 1px 0; }
+    #card.riddle ol { display: block; }
+    #hint { display: none; }
+    #progress { display: none; }
+    #shelf button .nm { min-width: 0; overflow-wrap: anywhere; }
+  }
+  @media (max-width: 380px) { #shelf button { font-size: 11px; padding: 3px 4px; gap: 4px; } .brand { font-size: 15px; } }
+  /* Short landscape phones: the shelf in one row, the card narrow. */
+  @media (max-height: 500px) and (min-width: 560px) {
+    #shelf { grid-template-columns: repeat(8, minmax(0, 1fr)); flex-basis: 0; }
+    #shelf button { flex-direction: column; min-height: 50px; font-size: 11px; padding: 3px 2px; text-align: center; justify-content: center; }
+    #actions { flex-basis: auto; flex-direction: column; }
+    #actions button { min-height: 22px; padding: 3px 10px; }
+    #card { width: min(260px, 36%); padding: 6px 9px; }
+    #card ol { display: block; }
+    #card h2 { font-size: 15px; }
+    #card li { font-size: 12.5px; }
+    #top { padding-top: 3px; padding-bottom: 3px; }
+    #top button { min-height: 32px; padding: 3px 9px; }
+    .bar { gap: 6px; }
+  }
+</style>
+</head>
+<body>
+<div id="top" class="bar">
+  <a class="brand" href="https://danielstephenson.dev/play" target="_top" title="More games">Cauldron</a>
+  <span class="stat" id="progress"></span>
+  <span class="stat" id="stars" title="Stars: three for a potion right first time"></span>
+  <span class="grow"></span>
+  <button id="soundBtn" title="Sound on or off (M)" aria-label="Sound" aria-pressed="true">&#9835;</button>
+  <button id="bookBtn" title="Start the potion book again">New</button>
+  <button id="helpBtn" title="How to play" aria-label="How to play">?</button>
+</div>
+
+<div id="stage">
+  <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+  <div id="card" aria-live="polite">
+    <div class="kicker" id="cardKicker">Recipe</div>
+    <h2 id="cardName"></h2>
+    <ol id="cardLines"></ol>
+    <div class="answer" id="cardAnswer" hidden></div>
+    <div id="pot"></div>
+  </div>
+  <div id="hint">Tap a jar to drop it in.<br>Then stir!</div>
+  <div id="toast" role="status" aria-live="assertive">
+    <h3 id="toastTitle"></h3>
+    <p id="toastText"></p>
+    <div class="row">
+      <button id="peekBtn" hidden>Peek at the answer</button>
+      <button id="againBtn" hidden>Pour out and try again</button>
+      <button id="nextBtn" hidden>Next recipe</button>
+    </div>
+  </div>
+</div>
+
+<div id="tray" class="bar">
+  <div id="shelf" role="group" aria-label="Ingredients"></div>
+  <div id="actions">
+    <button id="pourBtn" title="Empty the cauldron (P)">Pour out</button>
+    <button id="stirBtn" title="Stir the brew (S or Space)">Stir!</button>
+  </div>
+</div>
+
+<div id="help" class="dialog" role="dialog" aria-labelledby="helpTitle">
+  <h2 id="helpTitle">Cauldron</h2>
+  <p>It's Halloween night in the cottage, and the potion book is open. Each recipe card asks for a potion:
+    put in the ingredients <b>in order</b>, the <b>right number</b> of each, then <b>stir</b>.</p>
+  <ul>
+    <li class="for-keys">Click a jar on the shelf, or a button below, to drop it in. Keys <kbd>1</kbd>&ndash;<kbd>8</kbd> work too.
+      <kbd>S</kbd> or <kbd>Space</kbd> stirs, <kbd>P</kbd> pours out, <kbd>Enter</kbd> goes on, <kbd>M</kbd> mutes.</li>
+    <li class="for-touch">Tap a jar on the shelf, or a button below, to drop it in. Then tap <b>Stir!</b></li>
+    <li>Get it wrong and something silly happens. Pour it out and try again: there's no hurry.</li>
+    <li>The last three recipes are riddles: work out the ingredients from the clues.</li>
+  </ul>
+  <p class="dim">A make-believe cottage with make-believe magic. Built on the
+    <a href="https://github.com/Preponderous-Software/strata" target="_blank" rel="noopener">Strata</a> engine;
+    <a href="https://github.com/Preponderous-Software/cauldron" target="_blank" rel="noopener">source</a>.</p>
+  <div class="row"><button id="helpClose">Let's brew!</button></div>
+</div>
+
+<div id="done" class="dialog" role="dialog" aria-labelledby="doneTitle">
+  <h2 id="doneTitle">The potion book is finished!</h2>
+  <p id="doneText"></p>
+  <ul id="book"></ul>
+  <p class="dim">Happy Halloween!</p>
+  <div class="row"><button id="doneClose">Admire the cottage</button><button id="doneAgain">Brew again</button></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $('canvas');
+  var ready = false, call = {}, ingredients = [], lastKey = '', lastToast = '';
+  var touchMode = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+
+  // ---------------------------------------------------------------- sound
+  // Every sound is made here, from nothing (Web Audio): no recordings.
+  var ac = null, master = null, muted = false;
+  try { muted = localStorage.getItem('cauldron-sound') === 'off'; } catch (e) {}
+  function audio() {
+    if (ac) return ac;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    ac = new AC();
+    master = ac.createGain();
+    master.gain.value = muted ? 0 : 0.5;
+    master.connect(ac.destination);
+    return ac;
+  }
+  function unlock() { var a = audio(); if (a && a.state === 'suspended') a.resume(); }
+  function tone(type, f0, f1, dur, vol, when) {
+    var a = audio(); if (!a || muted) return;
+    var t = a.currentTime + (when || 0);
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.02, dur / 4));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.05);
+    return o;
+  }
+  var noiseBuf = null;
+  function noise(dur, vol, freq, q, when, sweepTo) {
+    var a = audio(); if (!a || muted) return;
+    if (!noiseBuf) {
+      noiseBuf = a.createBuffer(1, a.sampleRate, a.sampleRate);
+      var d = noiseBuf.getChannelData(0);
+      for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    var t = a.currentTime + (when || 0);
+    var s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    s.buffer = noiseBuf; s.loop = true;
+    f.type = 'bandpass'; f.frequency.setValueAtTime(freq, t); f.Q.value = q || 1;
+    if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(master);
+    s.start(t); s.stop(t + dur + 0.05);
+  }
+  function notes(list, type, len, vol, gap) {
+    list.forEach(function (f, i) { tone(type || 'triangle', f, f, len || 0.25, vol || 0.18, i * (gap || 0.1)); });
+  }
+  var SFX = {
+    pick: function () { tone('triangle', 1400, 1100, 0.06, 0.08); },
+    plop: function () { tone('sine', 520 + Math.random() * 120, 110, 0.22, 0.35); noise(0.12, 0.08, 900, 2, 0.02); },
+    stir: function () { for (var i = 0; i < 3; i++) noise(0.45, 0.12, 400, 2, i * 0.48, 1400); },
+    success: function () { notes([523, 659, 784, 1047, 1319], 'triangle', 0.35, 0.2, 0.09); notes([2093, 2637, 3136], 'sine', 0.2, 0.05, 0.12); },
+    next: function () { notes([784, 1047], 'triangle', 0.25, 0.14, 0.12); },
+    finale: function () { notes([523, 659, 784, 659, 784, 1047, 988, 1047, 1319, 1568], 'triangle', 0.3, 0.18, 0.13); },
+    ribbit: function () { for (var i = 0; i < 2; i++) { var o = tone('sawtooth', 220, 180, 0.11, 0.12, i * 0.14); } noise(0.2, 0.05, 600, 4); },
+    disco: function () { notes([110, 220, 165, 220, 110, 220, 196, 247], 'square', 0.12, 0.08, 0.12); },
+    floaty: function () { tone('sine', 300, 900, 1.4, 0.18); tone('sine', 305, 905, 1.4, 0.08); },
+    bats: function () { for (var i = 0; i < 10; i++) noise(0.05, 0.1, 2500, 3, i * 0.07); tone('sine', 3200, 3600, 0.08, 0.05, 0.3); },
+    dots: function () { for (var i = 0; i < 9; i++) tone('sine', 500 + Math.random() * 900, 200, 0.07, 0.18, i * 0.09); },
+    hic: function () { tone('sine', 520, 980, 0.09, 0.3); noise(0.08, 0.06, 1200, 3); },
+    sprinkles: function () { for (var i = 0; i < 16; i++) tone('sine', 2000 + Math.random() * 2500, 0, 0.08, 0.06, i * 0.06); },
+    grow: function () { tone('sine', 180, 520, 2.6, 0.1); },
+    boing: function () { var o = tone('sine', 420, 140, 0.6, 0.35); noise(0.1, 0.1, 1500, 1); },
+    fizzle: function () { noise(1.2, 0.18, 3000, 0.7, 0, 400); tone('sine', 300, 120, 0.8, 0.08); },
+    pfft: function () { noise(0.3, 0.06, 2000, 0.7, 0, 500); },
+    burp: function () { tone('sawtooth', 95, 70, 0.6, 0.22); tone('square', 60, 50, 0.6, 0.06); },
+    pour: function () { for (var i = 0; i < 4; i++) tone('sine', 300 - i * 40, 150, 0.14, 0.18, i * 0.13); noise(0.6, 0.08, 500, 1); },
+    full: function () { tone('triangle', 180, 150, 0.2, 0.2); }
+  };
+  Module_sfx = function (name) { var f = SFX[name]; if (f) try { f(); } catch (e) {} };
+  // Bubbling and a crackling fire, quietly, all the time.
+  var potFill = 0;
+  setInterval(function () {
+    if (!ac || muted || document.hidden) return;
+    if (Math.random() < 0.55 + potFill * 0.04) tone('sine', 140 + Math.random() * 160, 260 + Math.random() * 200, 0.09, 0.05);
+    if (Math.random() < 0.35) noise(0.03, 0.035, 3000 + Math.random() * 2000, 3);
+  }, 260);
+  function setMuted(m) {
+    muted = m;
+    if (master) master.gain.value = m ? 0 : 0.5;
+    $('soundBtn').setAttribute('aria-pressed', m ? 'false' : 'true');
+    $('soundBtn').setAttribute('aria-label', m ? 'Sound (off)' : 'Sound');
+    try { localStorage.setItem('cauldron-sound', m ? 'off' : 'on'); } catch (e) {}
+  }
+
+  // ---------------------------------------------------------------- the page
+  function api(name, ret, args) { return Module.cwrap(name, ret, args || []); }
+  function css(c) {  // linear RGB to a CSS colour
+    var s = c.map(function (v) { v = Math.max(0, Math.min(1, v)); return Math.round(255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055)); });
+    return 'rgb(' + s.join(',') + ')';
+  }
+  function dialogOpen() { return $('help').style.display === 'block' || $('done').style.display === 'block'; }
+
+  function buildShelf() {
+    ingredients = JSON.parse(call.ingredients());
+    var shelf = $('shelf');
+    shelf.textContent = '';
+    ingredients.forEach(function (it, i) {
+      var b = document.createElement('button');
+      b.dataset.i = i;
+      b.title = it.name + ': ' + it.blurb + ' (' + (i + 1) + ')';
+      b.setAttribute('aria-label', 'Add ' + it.name);
+      b.style.setProperty('--c', css(it.color));
+      var jar = document.createElement('span'); jar.className = 'jar';
+      var name = document.createElement('span'); name.className = 'nm'; name.textContent = it.name;
+      var k = document.createElement('kbd'); k.textContent = String(i + 1);
+      b.appendChild(jar); b.appendChild(name); b.appendChild(k);
+      press(b, function () { add(i); });
+      shelf.appendChild(b);
+    });
+  }
+
+  // Buttons act on the press, not the release (no click delay on phones);
+  // a keyboard's Enter or Space still comes as a click with detail 0.
+  function press(el, fn) {
+    el.addEventListener('pointerdown', function (e) { if (e.button > 0) return; e.preventDefault(); unlock(); fn(); });
+    el.addEventListener('click', function (e) { if (e.detail === 0) fn(); });
+  }
+
+  function add(i) { if (call.add(i)) refresh(); else refresh(); }
+  function stir() { call.stir(); refresh(); }
+  function pour() { call.pour(); refresh(); }
+  function next() {
+    if (call.next()) { refresh(); var s = status(); if (s.done) setTimeout(showDone, 1200); }
+  }
+  function status() { try { return JSON.parse(call.status()); } catch (e) { return {}; } }
+
+  function refresh() {
+    if (!ready) return;
+    var s = status();
+    window.cauldronStatus = s;
+    potFill = s.pot ? s.pot.length : 0;
+    $('progress').textContent = s.done ? 'Potion book finished' : 'Recipe ' + (s.recipe + 1) + ' of ' + s.recipes;
+    $('stars').textContent = '★ ' + s.stars;
+    var key = JSON.stringify([s.recipe, s.lines, s.matched, s.pot, s.answer, s.done]);
+    if (key !== lastKey) {
+      lastKey = key;
+      var card = $('card');
+      if (s.done) {
+        $('cardKicker').textContent = 'All done';
+        $('cardName').textContent = 'Happy Halloween!';
+        $('cardLines').textContent = '';
+        var li = document.createElement('li'); li.className = 'done';
+        li.textContent = s.recipes + ' potions, ' + s.stars + ' of ' + s.maxStars + ' stars';
+        $('cardLines').appendChild(li);
+        $('cardAnswer').hidden = true;
+      } else {
+        card.classList.toggle('riddle', !!s.riddle);
+        $('cardKicker').textContent = (s.riddle ? 'Riddle recipe ' : 'Recipe ') + (s.recipe + 1) + ' of ' + s.recipes;
+        $('cardName').textContent = s.name;
+        var ol = $('cardLines'); ol.textContent = '';
+        // Card recipes tick off each line as its spoonfuls go in (in order).
+        var counted = 0;
+        s.lines.forEach(function (t) {
+          var li = document.createElement('li');
+          li.textContent = t;
+          if (!s.riddle) {
+            var n = parseInt(t.replace(/^then /, ''), 10) || 1;
+            counted += n;
+            if (s.matched >= counted && s.pot.length >= counted) li.className = 'done';
+          }
+          ol.appendChild(li);
+        });
+        var ans = $('cardAnswer');
+        ans.hidden = !s.answer.length;
+        ans.textContent = s.answer.length ? 'The answer: ' + s.answer.join(', ') : '';
+      }
+      var pot = $('pot'); pot.textContent = '';
+      var lab = document.createElement('span');
+      lab.textContent = s.pot.length ? 'In the pot:' : 'The pot is empty';
+      pot.appendChild(lab);
+      s.pot.forEach(function (i) {
+        var d = document.createElement('i');
+        d.style.background = css(ingredients[i].color);
+        d.title = ingredients[i].name;
+        pot.appendChild(d);
+      });
+    }
+    var busy = s.stirring;
+    $('stirBtn').disabled = busy || s.stirred || !s.pot.length || s.done;
+    $('pourBtn').disabled = busy || s.done || (s.stirred && s.success) || (!s.pot.length && !s.stirred);
+    Array.prototype.forEach.call($('shelf').children, function (b) { b.disabled = busy || s.stirred || s.done || s.pot.length >= s.capacity; });
+    $('stirBtn').textContent = busy ? 'Stirring…' : 'Stir!';
+    // The verdict.
+    var toast = $('toast');
+    var tkey = s.stirred ? s.recipe + ':' + s.tries + ':' + s.success + ':' + s.canPeek : '';
+    if (tkey !== lastToast) {
+      lastToast = tkey;
+      if (s.stirred) {
+        $('toastTitle').textContent = s.title;
+        $('toastText').textContent = s.message;
+        toast.classList.toggle('good', s.success);
+        $('nextBtn').hidden = !s.success;
+        $('nextBtn').textContent = s.recipe + 1 >= s.recipes ? 'Finish the book' : 'Next recipe';
+        $('againBtn').hidden = s.success;
+        $('peekBtn').hidden = !s.canPeek;
+        toast.classList.remove('show'); void toast.offsetWidth; toast.classList.add('show');
+      } else {
+        toast.classList.remove('show');
+      }
+    }
+    $('peekBtn').hidden = !s.canPeek || !s.stirred;
+    $('hint').style.display = s.pot.length || s.done || s.recipe > 0 ? 'none' : '';
+    tellCover();
+  }
+
+  // On a narrow screen the card spans the top and the verdict the bottom:
+  // the game frames the cottage in what is left, so no jar hides under them.
+  var lastCover = '';
+  function tellCover() {
+    var st = $('stage'), h = st.clientHeight;
+    var top = 0, bottom = 0;
+    if (h > 0 && st.clientWidth <= 700) {
+      var sr = st.getBoundingClientRect(), cr = $('card').getBoundingClientRect();
+      top = Math.max(0, cr.bottom - sr.top + 4) / h;
+      var t = $('toast');
+      if (t.classList.contains('show')) bottom = Math.max(0, sr.bottom - t.getBoundingClientRect().top + 4) / h;
+    }
+    var key = top.toFixed(3) + ',' + bottom.toFixed(3);
+    if (key === lastCover) return;
+    lastCover = key;
+    call.cover(top, bottom);
+  }
+
+  function showDone() {
+    var s = status();
+    $('doneText').textContent = 'You brewed all ' + s.recipes + ' potions and earned ' + s.stars + ' of ' + s.maxStars + ' stars.';
+    var ul = $('book'); ul.textContent = '';
+    s.made.forEach(function (n, i) {
+      var li = document.createElement('li');
+      li.textContent = '★★★'.slice(0, s.starsEach[i]) + '☆☆☆'.slice(0, 3 - s.starsEach[i]) + '  ' + n;
+      ul.appendChild(li);
+    });
+    $('done').style.display = 'block';
+  }
+
+  function sizeCanvas() {
+    if (!ready) return;
+    var st = $('stage');
+    var dpr = window.devicePixelRatio || 1;
+    var k = dpr > 2 ? 2 / dpr : 1;  // SDL applies the ratio itself, capped at 2 here
+    call.resize(Math.round(st.clientWidth * k), Math.round(st.clientHeight * k));
+  }
+
+  function wire() {
+    buildShelf();
+    press($('stirBtn'), stir);
+    press($('pourBtn'), pour);
+    press($('againBtn'), pour);
+    press($('nextBtn'), next);
+    press($('peekBtn'), function () { call.peek(); refresh(); });
+    $('soundBtn').addEventListener('click', function () { unlock(); setMuted(!muted); });
+    $('bookBtn').addEventListener('click', function () {
+      if (!window.confirm('Start the potion book again from the first recipe?')) return;
+      call.restart(); refresh();
+    });
+    $('helpBtn').addEventListener('click', function () { $('help').style.display = 'block'; });
+    $('helpClose').addEventListener('click', function () {
+      unlock();
+      $('help').style.display = 'none';
+      try { localStorage.setItem('cauldron-seen-help', '1'); } catch (e) {}
+    });
+    $('doneClose').addEventListener('click', function () { $('done').style.display = 'none'; });
+    $('doneAgain').addEventListener('click', function () { $('done').style.display = 'none'; call.restart(); refresh(); });
+    // A tap on a jar in the cottage drops it in. The position goes over as a
+    // fraction of the canvas, so the drawing size (and its pixel ratio) never matters.
+    canvas.addEventListener('pointerdown', function (e) {
+      if (dialogOpen()) return;
+      unlock();
+      var r = canvas.getBoundingClientRect();
+      call.tap((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+      refresh();
+    });
+    window.addEventListener('keydown', function (e) {
+      unlock();
+      if (dialogOpen()) {
+        if (e.key === 'Enter' || e.key === 'Escape') { $('help').style.display = 'none'; $('done').style.display = 'none'; }
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var n = parseInt(e.key, 10);
+      if (n >= 1 && n <= 8) { add(n - 1); e.preventDefault(); }
+      else if (e.key === 's' || e.key === 'S' || e.key === ' ') { stir(); e.preventDefault(); }
+      else if (e.key === 'p' || e.key === 'P' || e.key === 'Backspace') { pour(); e.preventDefault(); }
+      else if (e.key === 'Enter') { var s = status(); if (s.success) next(); else if (s.stirred) pour(); }
+      else if (e.key === 'm' || e.key === 'M') setMuted(!muted);
+    });
+    window.addEventListener('touchstart', function () {
+      if (!touchMode) { touchMode = true; document.body.classList.add('touch'); }
+    }, { passive: true });
+    window.addEventListener('resize', sizeCanvas);
+    if (window.ResizeObserver) new ResizeObserver(sizeCanvas).observe($('stage'));
+    setInterval(refresh, 200);
+  }
+
+  var Module_sfx;
+  window.Module = {
+    canvas: canvas,
+    print: function (t) { console.log(t); },
+    printErr: function (t) { console.warn(t); },
+    sfx: function (name) { Module_sfx(name); },
+    onGameReady: function () {
+      call = {
+        add: api('cauldron_add', 'number', ['number']),
+        stir: api('cauldron_stir', 'number'),
+        pour: api('cauldron_pour', 'number'),
+        next: api('cauldron_next', 'number'),
+        restart: api('cauldron_restart'),
+        peek: api('cauldron_peek'),
+        tap: api('cauldron_tap', 'number', ['number', 'number']),
+        resize: api('cauldron_resize', null, ['number', 'number']),
+        cover: api('cauldron_cover', null, ['number', 'number']),
+        ingredients: api('cauldron_ingredients', 'string'),
+        status: api('cauldron_status', 'string')
+      };
+      window.cauldron = call;  // for the smoke test and the curious
+      ready = true;
+      document.body.classList.toggle('touch', touchMode);
+      StrataBoot.ready();
+      wire();
+      setMuted(muted);
+      sizeCanvas();
+      var seen = false;
+      try { seen = localStorage.getItem('cauldron-seen-help') === '1'; } catch (e) {}
+      if (!seen) $('help').style.display = 'block';
+      refresh();
+      // The jars' places on screen are known after the first frame.
+      setTimeout(function () { ingredients = JSON.parse(call.ingredients()); }, 500);
+    },
+    onRendererFailed: function (why) {
+      StrataLoader.fallback('engine', 'Cauldron needs WebGL 2, which this browser did not provide (' + why + ').');
+    }
+  };
+})();
+</script>
+<!-- emcc's script tag, kept inert: web/strata-boot.js starts it behind the
+     loading shell. data-bytes is the download's size, stamped by the build. -->
+<template id="strata-glue" data-bytes="0">{{{ SCRIPT }}}</template>
+<!-- The loading shell, vendored from Strata, and its bridge to this build; the
+     build puts both inline (web/strata_page.cmake). -->
+<script src="strata-kit/strata-loader.js"></script>
+<script src="strata-boot.js"></script>
+<script>
+  StrataBoot.start({
+    wasm: 'cauldron.wasm',
+    title: 'Cauldron',
+    fallback: { href: 'https://danielstephenson.dev/play', text: 'More games' },
+    canvas: document.getElementById('canvas')
+  }).catch(function () {});  // the loading shell already shows why
+</script>
+</body>
+</html>
