@@ -212,7 +212,17 @@ function colourCount(png) {
   if (s.stirred || s.pot.length) await fail('Pour out did not empty the pot');
 
   // ---- recipe 1, right: the first spoonful by tapping its jar in the cottage.
-  const jar = (JSON.parse(await page.evaluate(() => window.cauldron.ingredients())))[1].jar;
+  // The view eases as the verdict goes (on a phone it reframes the cottage):
+  // wait until the jar holds still on screen before tapping it.
+  const jarNow = async () => (JSON.parse(await page.evaluate(() => window.cauldron.ingredients())))[1].jar;
+  let jar = await jarNow();
+  for (let k = 0; k < 40; k++) {
+    await page.waitForTimeout(250);
+    const again = await jarNow();
+    const still = Math.abs(again[0] - jar[0]) < 0.001 && Math.abs(again[1] - jar[1]) < 0.001;
+    jar = again;
+    if (still) break;
+  }
   const box = await page.locator('#canvas').boundingBox();
   if (!(jar[0] > 0 && jar[0] < 1 && jar[1] > 0 && jar[1] < 1)) await fail('the Glow Mushroom jar is off screen: ' + jar);
   const jx = box.x + jar[0] * box.width, jy = box.y + jar[1] * box.height;

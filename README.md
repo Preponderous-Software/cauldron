@@ -23,9 +23,11 @@ The brew changes colour, bubbles and steams as it goes in.
 - Stars for each potion (three when it is right first time), and a finished potion book at the end.
 - Every sound is synthesized in the page as it plays (Web Audio), with no recordings.
 
+![Three spoonfuls of Pumpkin Seeds in Glow Juice: polka dots all over the cottage](docs/images/polka-dots.png)
+
 The witchcraft here is storybook make-believe: a cottage, a cat asleep on the shelf, and silly magic.
 
-![A riddle recipe card, with its answer peeked after two tries](docs/images/riddle.png)
+![On a phone: a riddle recipe card, with its answer peeked after two tries](docs/images/riddle.png)
 
 ## Controls
 

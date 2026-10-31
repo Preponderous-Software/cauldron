@@ -60,8 +60,8 @@
   #toast .row button { min-width: 130px; font-weight: 700; }
   #nextBtn, #againBtn { background: #3d5a1e; border-color: var(--glow); }
   /* Wide screens: the verdict sits at the bottom right, clear of the hearth (and the frog). */
-  @media (min-width: 900px) {
-    #toast { left: auto; right: max(16px, env(safe-area-inset-right)); bottom: 16px; transform: none; width: 400px; }
+  @media (min-width: 900px), (max-height: 500px) and (min-width: 560px) {
+    #toast { left: auto; right: max(12px, env(safe-area-inset-right)); bottom: 12px; transform: none; width: min(400px, 46%); }
     #toast.show { animation-name: popRight; }
   }
   @keyframes popRight { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -102,9 +102,9 @@
   /* Phones: the card goes across the top, small; the shelf is two rows of four. */
   @media (max-width: 700px) {
     #shelf { grid-template-columns: repeat(4, minmax(0, 1fr)); flex-basis: 100%; }
-    #shelf button { flex-direction: row; justify-content: flex-start; min-height: 46px; font-size: 12px; text-align: left; padding: 4px 4px; gap: 4px; }
-    #shelf button .jar { flex: 0 0 auto; width: 12px; height: 17px; border-width: 1px; }
-    #shelf button .nm { -webkit-hyphens: auto; hyphens: auto; }
+    #shelf button { flex-direction: row; justify-content: flex-start; min-height: 46px; font-size: 12.5px; text-align: left; padding: 4px 6px; gap: 4px; }
+    #shelf button .jar, #shelf kbd { display: none; }
+    #shelf button { border-left: 6px solid var(--c); box-shadow: inset 8px 0 10px -8px var(--c); }
     #toast { padding: 8px 10px 10px; }
     #toast h3 { font-size: 18px; }
     #toast p { font-size: 13.5px; margin-bottom: 7px; }
@@ -130,6 +130,9 @@
     #card ol { display: block; }
     #card h2 { font-size: 15px; }
     #card li { font-size: 12.5px; }
+    #toast { padding: 6px 10px 8px; }
+    #toast h3 { font-size: 16px; }
+    #toast p { font-size: 13px; margin-bottom: 5px; }
     #top { padding-top: 3px; padding-bottom: 3px; }
     #top button { min-height: 32px; padding: 3px 9px; }
     .bar { gap: 6px; }

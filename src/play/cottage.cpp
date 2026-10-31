@@ -716,16 +716,21 @@ void Cottage::draw() {
         const float t = effectT_;
         switch (out) {
         case Outcome::Frog: {
+            // Out of the pot in one leap onto the rim, then round the rim, hop by hop.
+            const float rim = 1.02f;
             V3 at;
             float squash = 1;
-            if (t < 0.9f) {  // out of the pot in one leap
+            const float front = kPi * 0.5f;  // the rim's near side
+            if (t < 0.9f) {
                 const float u = t / 0.9f;
-                at = {lerp(c.x, 1.6f, u), c.y + 1.0f + std::sin(u * kPi) * 1.5f - u * (c.y + 1.0f), lerp(c.z, 2.4f, u)};
+                const V3 land{c.x + std::cos(front + 0.6f) * rim, c.y + 0.95f, c.z + std::sin(front + 0.6f) * rim};
+                at = {lerp(c.x, land.x, u), c.y + 0.9f + std::sin(u * kPi) * 1.3f, lerp(c.z, land.z, u)};
             } else {
                 const float h = (t - 0.9f) * 1.2f;
                 const float ph = h - std::floor(h);
-                const float x = 1.6f * std::cos((t - 0.9f) * 0.75f);
-                at = {x, std::sin(ph * kPi) * 0.6f, 2.4f + 0.3f * std::sin((t - 0.9f) * 0.75f)};
+                // Each hop moves a step round; it swings back and forth across the near side.
+                const float a = front + 0.6f * std::cos((std::floor(h) + ph) * 0.55f);
+                at = {c.x + std::cos(a) * rim, c.y + 0.95f + std::sin(ph * kPi) * 0.45f, c.z + std::sin(a) * rim};
                 squash = ph < 0.12f ? 0.75f : 1.0f;
             }
             frog(d, at, squash, false);
@@ -760,9 +765,10 @@ void Cottage::draw() {
                 const float u = hash01(static_cast<uint32_t>(k * 3 + 1)), v = hash01(static_cast<uint32_t>(k * 3 + 2));
                 const int face = k % 4;
                 V3 p;
-                if (face == 0 || face == 3) p = {-6.5f + u * 13.0f, 0.2f + v * 6.2f, -3.92f};  // the back wall
-                else if (face == 1) p = {-6.45f, 0.2f + v * 6.2f, -4.0f + u * 9.0f};        // left wall
-                else p = {6.45f, 0.2f + v * 6.2f, -4.0f + u * 9.0f};                       // right wall
+                // A little proud of each wall, so the camera-facing discs aren't cut in half by it.
+                if (face == 0 || face == 3) p = {-6.2f + u * 12.4f, 0.3f + v * 6.0f, -3.72f};  // the back wall
+                else if (face == 1) p = {-6.2f, 0.3f + v * 6.0f, -3.7f + u * 8.7f};          // left wall
+                else p = {6.2f, 0.3f + v * 6.0f, -3.7f + u * 8.7f};                         // right wall
                 if (k % 9 == 4) p = {-6.0f + u * 12.0f, 0.02f, -3.0f + v * 7.0f};          // the floor
                 d.dot(p, 0.42f, dots[k % 5], 1.0f, false, 3);
             }
