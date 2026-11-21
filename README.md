@@ -67,6 +67,14 @@ node web/smoke/smoke.cjs http://127.0.0.1:8080/ smoke-out/phone --phone
 CI (`.github/workflows/`) runs the rules tests natively and as wasm, the smoke test on both profiles, and on `main`
 deploys the page to the arcade.
 
+## Releases
+
+A release is a bare version tag (`0.1.0`, no `v`) that matches `project(... VERSION ...)` in
+`CMakeLists.txt`. Pushing one makes `.github/workflows/release.yml` build the browser game and
+attach `Cauldron-<version>-web.zip` (the page, its `.js` and `.wasm`, and the licences) and its
+`.sha256` to the GitHub release. The arcade still deploys every push to `main`; a release does not
+change what it serves.
+
 ## Licence
 
 MIT; see [LICENSE](LICENSE). The page's loading shell (`web/strata-kit/`) is vendored from Strata, also MIT.
